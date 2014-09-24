@@ -33,146 +33,193 @@ var chartPos;
 var chartSize;
 
 function setup(data){
-
-	canvasResize();
-
+	/* -------------------- LAYOUT -------------------- */
 	chartPos = {x: 130,
 				y: $('#title').height() + 40 };
-
 	positionDivs();	
-
 	var frameTop = $('#bottomFrame').css('top');
 	frameTop = frameTop.substr(0, frameTop.indexOf('p'));
+	chartSize = {x: window.innerWidth - (3 * chartPos.x),
+				 y: frameTop - chartPos.y - 40 };
+	/* ------------------------------------------------ */
 
-	chartSize = {x: canvas.width - (3 * chartPos.x),
-				 y: frameTop - chartPos.y - 40
-				};
+	/* --------------------- DATA --------------------- */
+	months = createMonths();					// creating the (string) list of months (jan, feb)
+	allNews = reorganizeDataByDay(data);	 	// reorganize data by day
+	allNews = reorganizeDataByCompany(allNews);	// reorganize data by company
+	console.log(allNews);
 
-	months = createMonths();
+	var maxEvents = d3.max(allNews, function(d) {
+	    return d.length;
+	});
+	console.log(maxEvents);				// maximum number of events in a single day
+	/* ------------------------------------------------ */
 
-	allNews = reorganizeData(data);
-	maxEvents = getMaxEvents(allNews);
-	hitsByCompany = getHitsByCompany(allNews);
+					// categories, not numbers
+	var xScale =	d3.scale.ordinal()
+					// input domain is gonna be the length
+					.domain(d3.range(allNews.length))
+					// start, end, % occupied by spacing
+					.rangeRoundBands([chartPos.x, chartPos.x + chartSize.x], 0.05);
 
-	selectedLine = null;
-	url = null;
-	nResults = 0;
+	var yScale = d3.scale.linear()
+					.domain([0, maxEvents])
+					.range([chartPos.y, chartPos.y + chartSize.y]);	
 
-	myLoop = setInterval(draw, 60);
-}
+	var barHeight = chartSize.y / maxEvents;
+	console.log(barHeight);
 
-function draw(){
-	//Erasing the background
-	ctx.fillStyle = parseHslaColor(295, 50, 15, 1);
-	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	// Create SVG element
+	var svg = d3.select('body')
+				.append('svg')
+				.attr('width', chartSize.x)
+				.attr('height', chartSize.y)
+				.attr('left', chartPos.x)	
+				.attr('top', chartPos.y);
 
-	if(!checkChartHover()){
-		selectedLine = null;
-	}
-	
-	var currentMonth, lastMonth;
-	var pos = {x: 0, y: 0};
-	var size = {x: chartSize.x/allNews.length,
-				y: chartSize.y/maxEvents};
+	//Create groups
+	var groups = svg.selectAll('g')
+					.data(allNews)
+					.enter()
+					.append('g')
+					.attr('transform', function(d, i){
+						return 'translate('+ xScale(i) + ', 0)';
+					});				   
 
-	ctx.save();
-	ctx.translate(chartPos.x, chartPos.y);
-
-	var baseline = chartSize.y;
-
-	for(var i = 0; i < allNews.length; i++){
-
-		var line = allNews[i];	//Each "line" of my "table"
-		var companyCount = {folha: 0, globo: 0}
-				
-		if(checkColumnHover(pos, size) && checkChartHover()){
-		// if(checkColumnHover(pos, size)){
-			selectedLine = i;
-		}
-
-		if(selectedLine == i){
-
-			// size.x = (chartSize.x/allNews.length)*40;
-			// size.y = (chartSize.y/maxEvents)*40;
-			size.x = 200;
-			size.y = 100;			
-
-			var totalEventsByLine = hitsByCompany[i].folha + hitsByCompany[i].globo;
-			var totalHeight = size.y * totalEventsByLine;
-
-			if(totalHeight > chartSize.y){
-				baseline = map(mouse.y,
-								chartPos.y, chartPos.y + chartSize.y,
-								totalHeight, chartSize.y);
-
-				baseline = constrain(baseline, chartSize.y, totalHeight);
-			}
-
-			highlight(line[0], pos, size, baseline);
-		}else{
-			size.x = chartSize.x/allNews.length;
-			size.y = chartSize.y/maxEvents;
-			baseline = chartSize.y;
-		}
-		
-		for(var j = 0; j < line.length; j++){
-
-			
-			var obj = line[j];
-			var color;
-			pos.y = baseline;
-
-			if(obj.company == 'O Globo'){
+	// Create bars
+	groups.selectAll('rect')
+		.data(function(d) { return d; })
+		.enter()
+		.append('rect')
+		.attr('x', 0)
+		.attr('y', function(d, i) {
+			return chartPos.y + chartSize.y - yScale(i);
+		})
+		.attr('width', xScale.rangeBand())
+		.attr('height', barHeight)
+		.attr('fill', function(d, i) {
+			if(d.company == 'O Globo'){
 				color = parseHslaColor(80, 100, 50, 1);
-				companyCount.globo++;
-				pos.y -= hitsByCompany[i].folha * size.y;
-				pos.y -= companyCount.globo * size.y;
 			}else{
 				color = parseHslaColor(180, 100, 50, 1);
-				companyCount.folha++;
-				pos.y -= companyCount.folha * size.y;
-			}
-			
-			//Changing the color according to the query
-			var lowerCaseHeadline = obj.headline.toLowerCase();
-			if(	query != ''){
-				if(lowerCaseHeadline.search(query) == -1){
-					color = parseHslaColor(0, 0, 100, 0.5);
-					resultFound = false;
-				}else{
-					//Bar that show found results above each column
-					ctx.fillStyle = parseHslaColor(0, 0, 100, 0.2);
-					ctx.fillRect(pos.x, baseline, size.x - 1, 10)				
-				}
-			}
+			}			
+			return color;
+		});
 
-			checkObjHover(obj, pos, size);
-
-			ctx.fillStyle = color;
-			ctx.fillRect(pos.x, pos.y, size.x - 1, size.y - 1);
-			if(selectedLine == i){
-				drawText(obj, pos, size);
-			}
-			
-			pos.y = 0;	//Reset y
-
-			currentMonth = new Date(obj.date).getMonth();
-			
-		}
-
-		//draw month scale
-		if(currentMonth != lastMonth){
-			drawScale(currentMonth, pos);
-		}		
-		lastMonth = currentMonth;	
-
-		//increase x
-		pos.x += size.x;	
-	}
-	
-	ctx.restore();
-	//selectedLine = null;
 }
+
+// function draw(){
+// 	//Erasing the background
+// 	ctx.fillStyle = parseHslaColor(295, 50, 15, 1);
+// 	ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+// 	if(!checkChartHover()){
+// 		selectedLine = null;
+// 	}
+	
+// 	var currentMonth, lastMonth;
+// 	var pos = {x: 0, y: 0};
+// 	var size = {x: chartSize.x/allNews.length,
+// 				y: chartSize.y/maxEvents};
+
+// 	ctx.save();
+// 	ctx.translate(chartPos.x, chartPos.y);
+
+// 	var baseline = chartSize.y;
+
+// 	for(var i = 0; i < allNews.length; i++){
+
+// 		var line = allNews[i];	//Each 'line' of my 'table'
+// 		var companyCount = {folha: 0, globo: 0}
+				
+// 		if(checkColumnHover(pos, size) && checkChartHover()){
+// 		// if(checkColumnHover(pos, size)){
+// 			selectedLine = i;
+// 		}
+
+// 		if(selectedLine == i){
+
+// 			// size.x = (chartSize.x/allNews.length)*40;
+// 			// size.y = (chartSize.y/maxEvents)*40;
+// 			size.x = 200;
+// 			size.y = 100;			
+
+// 			var totalEventsByLine = hitsByCompany[i].folha + hitsByCompany[i].globo;
+// 			var totalHeight = size.y * totalEventsByLine;
+
+// 			if(totalHeight > chartSize.y){
+// 				baseline = map(mouse.y,
+// 								chartPos.y, chartPos.y + chartSize.y,
+// 								totalHeight, chartSize.y);
+
+// 				baseline = constrain(baseline, chartSize.y, totalHeight);
+// 			}
+
+// 			highlight(line[0], pos, size, baseline);
+// 		}else{
+// 			size.x = chartSize.x/allNews.length;
+// 			size.y = chartSize.y/maxEvents;
+// 			baseline = chartSize.y;
+// 		}
+		
+// 		for(var j = 0; j < line.length; j++){
+
+			
+// 			var obj = line[j];
+// 			var color;
+// 			pos.y = baseline;
+
+// 			if(obj.company == 'O Globo'){
+// 				color = parseHslaColor(80, 100, 50, 1);
+// 				companyCount.globo++;
+// 				pos.y -= hitsByCompany[i].folha * size.y;
+// 				pos.y -= companyCount.globo * size.y;
+// 			}else{
+// 				color = parseHslaColor(180, 100, 50, 1);
+// 				companyCount.folha++;
+// 				pos.y -= companyCount.folha * size.y;
+// 			}
+			
+// 			//Changing the color according to the query
+// 			var lowerCaseHeadline = obj.headline.toLowerCase();
+// 			if(	query != ''){
+// 				if(lowerCaseHeadline.search(query) == -1){
+// 					color = parseHslaColor(0, 0, 100, 0.5);
+// 					resultFound = false;
+// 				}else{
+// 					//Bar that show found results above each column
+// 					ctx.fillStyle = parseHslaColor(0, 0, 100, 0.2);
+// 					ctx.fillRect(pos.x, baseline, size.x - 1, 10)				
+// 				}
+// 			}
+
+// 			checkObjHover(obj, pos, size);
+
+// 			ctx.fillStyle = color;
+// 			ctx.fillRect(pos.x, pos.y, size.x - 1, size.y - 1);
+// 			if(selectedLine == i){
+// 				drawText(obj, pos, size);
+// 			}
+			
+// 			pos.y = 0;	//Reset y
+
+// 			currentMonth = new Date(obj.date).getMonth();
+			
+// 		}
+
+// 		//draw month scale
+// 		if(currentMonth != lastMonth){
+// 			drawScale(currentMonth, pos);
+// 		}		
+// 		lastMonth = currentMonth;	
+
+// 		//increase x
+// 		pos.x += size.x;	
+// 	}
+	
+// 	ctx.restore();
+// 	//selectedLine = null;
+// }
 
 /*--------------- DRAW FUNCTIONS ---------------*/
 /* --------- Called at every draw loop ---------*/
@@ -239,29 +286,6 @@ function checkObjHover(obj, pos, size){
 	}else{
 		url = null;
 	}
-
-	// if(checkChartHover()){
-
-	// 	if(pos.x + chartPos.x < mouse.x &&
-	// 	   mouse.x < pos.x + size.x + chartPos.x){
-
-	// 			//News
-	// 			if(pos.y + chartPos.y < mouse.y &&
-	// 			   mouse.y < pos.y + size.y + chartPos.y){
-
-	// 			var currentDate = new Date(obj.date);
-	// 			var txt = (currentDate.getMonth() + 1) + '/';
-	// 				txt += currentDate.getDate() + '<br>';
-	// 				txt += obj.company + ' | ';
-	// 				txt += obj.section + '<br>';
-	// 				txt += '<span class="headline">' + obj.headline + '</span>';
-
-	// 				$('#selected').html(txt);
-	// 			}
-	// 	}
-	// }else{
-	// 	$('#selected').html('');
-	// }
 }
 
 //Highlight column
@@ -335,7 +359,7 @@ var getHitsByCompany = function(data){
 
 	for(var i = 0; i < allNews.length; i++){
 
-		var line = allNews[i];	//Each "line" of my "table"
+		var line = allNews[i];	//Each 'line' of my 'table'
 		var hits = {folha: 0, globo: 0};
 
 		for(var j = 0; j < line.length; j++){
@@ -348,26 +372,12 @@ var getHitsByCompany = function(data){
 
 		allHits.push(hits);
 	}
-
 	return allHits;
-}
-
-//Maximum number of events by day
-var getMaxEvents = function(data){
-
-	var highestResult = 0;
-
-	for(var i = 0; i < allNews.length; i++){
-		if(allNews[i].length > highestResult){
-			highestResult = allNews[i].length;
-		}
-	}
-	return highestResult
 }
 
 //Reorganize the whole data in a 2D array:
 //each line is an array of events with the same date
-var reorganizeData = function (data){
+var reorganizeDataByDay = function (data){
 
 	var events = new Array();
 
@@ -377,7 +387,7 @@ var reorganizeData = function (data){
 	var currentDate;
 	var lastDate = new Date();
 
-	for(var i = 0; i < data.length - 1; i++){
+	for(var i = 0; i < data.length; i++){
 
 		currentDate = new Date(data[i].date);
 
@@ -386,7 +396,7 @@ var reorganizeData = function (data){
 		}else{
 			//If this is not the first iteration of the loop...
 			if(i != 0){
-				events.push(eventsAtDate);	//Push the new "line" of events to the array that holds'em all
+				events.push(eventsAtDate);	//Push the new 'line' of events to the array that holds'em all
 				eventsAtDate = new Array();	//Reset the array to start collecting events for the next date				
 			}
 			eventsAtDate.push(data[i]);
@@ -398,22 +408,42 @@ var reorganizeData = function (data){
 	return events;
 }
 
+var reorganizeDataByCompany = function (data){
+
+	var newData = new Array();	// All news
+		
+
+	for(var i = 0; i < data.length; i++){
+		
+		var eventsAtDate = data[i];
+		var newEventsAtDate = new Array();
+		
+		// Loop through THIS date and select all Folha
+		for(var j = 0; j < eventsAtDate.length; j++){
+			if(eventsAtDate[j].company == 'Folha de S.Paulo'){
+				newEventsAtDate.push(eventsAtDate[j]);
+			}
+		}
+		// Loop through THIS date and select all Globo
+		for(var j = 0; j < eventsAtDate.length; j++){
+			if(eventsAtDate[j].company == 'O Globo'){
+				newEventsAtDate.push(eventsAtDate[j]);
+			}
+		}
+
+		// Push the new date array to the main one
+		newData.push(newEventsAtDate);
+		// newEventsAtDate = new Array();		
+	}
+	return newData;
+}
+
 /*---------- AUXILIAR FUNCTIONS ----------*/
 //Sort JSON array by date
-	function sortDate(a, b) {
-		//getTime provides an equal value for h,min,s: the current time
-	    return new Date(a.date).getTime() - new Date(b.date).getTime();
-	}
-
-//Resizing the canvas to the full window size
-function canvasResize(){
-	screenWidth = window.innerWidth;
-	screenHeight = window.innerHeight;
-
-	canvasPosition = canvas.getBoundingClientRect(); // Gets the canvas position
-	canvas.width = screenWidth - 10;
-	canvas.height = screenHeight - 10;
-}	
+function sortDate(a, b) {
+	//getTime provides an equal value for h,min,s: the current time
+    return new Date(a.date).getTime() - new Date(b.date).getTime();
+}
 
 var map = function(value, aMin, aMax, bMin, bMax){
   	var srcMax = aMax - aMin,
@@ -549,18 +579,18 @@ var positionDivs = function(){
 
 var createMonths = function(){
 	month = new Array();
-	month[0]="Jan";
-	month[1]="Feb";
-	month[2]="Mar";
-	month[3]="Apr";
-	month[4]="May";
-	month[5]="Jun";
-	month[6]="Jul";
-	month[7]="Aug";
-	month[8]="Sep";
-	month[9]="Oct";
-	month[10]="Nov";
-	month[11]="Dec";
+	month[0]='Jan';
+	month[1]='Fev';
+	month[2]='Mar';
+	month[3]='Abr';
+	month[4]='Mai';
+	month[5]='Jun';
+	month[6]='Jul';
+	month[7]='Ago';
+	month[8]='Set';
+	month[9]='Out';
+	month[10]='Nov';
+	month[11]='Dez';
 	return month;
 }	
 
@@ -570,7 +600,7 @@ canvas.addEventListener('mousemove', function(evt){
 }, false);
 
 canvas.addEventListener('mousedown', function(evt){
-	isPressed = true;	// Set my "isPressed" variable to true
+	isPressed = true;	// Set my 'isPressed' variable to true
 	getMousePos(evt);
 	if(url != null){
 		window.open(url,'_blank');	
@@ -579,6 +609,6 @@ canvas.addEventListener('mousedown', function(evt){
 }, false);
 
 // canvas.addEventListener('mouseup', function(evt){
-// 	isPressed = false;	// Set my "isPressed" variable to false
+// 	isPressed = false;	// Set my 'isPressed' variable to false
 // 	getMousePos(evt);
 // }, false);		
