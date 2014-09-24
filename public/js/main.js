@@ -84,7 +84,19 @@ function setup(data){
 					.append('g')
 					.attr('transform', function(d, i){
 						return 'translate('+ xScale(i) + ', 0)';
-					});				   
+					})
+					.on('click', function(d) {
+       					// zoomIn(this);
+       					d3.select(this).selectAll('rect')
+							.transition()
+							.duration(500)
+							.attr('width', xScale.rangeBand() * 10)
+							.attr('height', barHeight * 10)
+							// .attr('x', 0)
+							.attr('y', function(d, i) {
+								return chartPos.y + chartSize.y - (barHeight * i * 10);
+							});
+					});
 
 	// Create bars
 	groups.selectAll('rect')
@@ -106,7 +118,11 @@ function setup(data){
 			return color;
 		});
 
+		// function zoomIn(obj){
+		// 	var rects = obj.
+		// }		
 }
+
 
 // function draw(){
 // 	//Erasing the background
@@ -417,7 +433,7 @@ var reorganizeDataByCompany = function (data){
 		
 		var eventsAtDate = data[i];
 		var newEventsAtDate = new Array();
-		
+
 		// Loop through THIS date and select all Folha
 		for(var j = 0; j < eventsAtDate.length; j++){
 			if(eventsAtDate[j].company == 'Folha de S.Paulo'){
