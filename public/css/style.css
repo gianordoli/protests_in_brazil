@@ -1,0 +1,144 @@
+body{
+	font-family: 'Raleway', sans-serif;
+	font-weight: 400;
+	font-size: 16px;
+	color: white;
+	line-height: 21px;	
+	padding: 0;
+	border: 0;
+	margin: 0;
+	background-color: black;
+	background-color: hsl(295, 50%, 15%);
+
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+}
+
+canvas{
+	padding: 0;
+	border: 0;
+	margin: 0;	
+}
+
+#title{
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 65px;
+	/*background-color: black;*/
+}
+
+#menu{
+	position: absolute;
+	left: 0;
+	width: 100%;
+	height: 160px;
+}
+
+#selected{
+	position: absolute;
+	left: 0;
+	width: 300px;
+	height: 200px;
+}
+
+.columns{
+	padding: 0 2 0 2;
+/*	width: 20%;*/
+	display: inline-block;
+	vertical-align: top;		
+}
+
+input{
+	font-family: 'Raleway', sans-serif;
+	width: 200px;
+	height: 21px;
+	margin: 0;
+	padding: 0 10px 0 10px;	
+
+	font-weight: 400;
+	font-size: 13px;
+	
+	border: 1px;
+	border-style: solid;
+	border-color: white;
+
+	/*background-color: hsl(50, 70%, 50%); */
+	background-color: transparent;
+	color: white; 
+	outline: none;	
+}
+
+button{
+	font-family: 'Raleway', sans-serif;
+	font-weight: 400;
+	font-size: 13px;
+	border: 0px;
+	margin: 0 6px 0 0;
+	padding: 0 10px 0 10px;
+	height: 21px;
+	/*background-color: hsl(50, 70%, 50%); */
+	color: hsl(295, 50%, 15%);
+	/*color: yellow;*/
+	background-color: white;
+	outline: none;
+	text-align: left;
+}
+
+.sectionHeader{
+	width: 120px;
+}
+
+.sections{
+	text-align: left;
+	color: white;
+	background-color: transparent;
+}
+
+#folhaSections{
+	display: none;
+	/*visibility: hidden;*/
+}
+
+h1{
+	display: inline-block;
+	font-size: 26px;
+/*	background-color: black;*/
+}
+
+.dot{
+	vertical-align: middle;
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	border-radius: 12px;
+	margin: 0 5px 0 15px;
+}
+
+#dotFolha{
+	background-color: hsl(180, 100%, 50%);
+}
+#dotGlobo{
+	background-color: hsl(80, 100%, 50%);
+}
+
+hr{
+	position: absolute;	
+	height: 1px;
+	border: 0;
+	background-color: white;
+}
+
+.headline{
+	font-size: 21px;
+	font-weight: 900;
+	line-height: 26px;
+}
+
+a{
+	text-decoration: none;
+}

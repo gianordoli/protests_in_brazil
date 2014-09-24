@@ -1,0 +1,29 @@
+NOTES
+
+Scraping results
+
+from: Folha de S. Paulo
+
+for: "protestos"
+
+filtering: 
+	'Mundo'
+	'Esporte'
+	'Folha na Copa'
+	'Painel do Leitor'
+	'Turismo'
+
+range: whole month (july)
+
+last:
+- search updates the number of pages to get ALL results for the time range
+
+current:
+- storing date as new Date(), not new Object()
+- calculating last day of month to define search period
+- automate search for next month!
+- read results
+
+next:
+- scrape data from other websites
+
