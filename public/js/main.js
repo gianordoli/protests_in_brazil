@@ -10,11 +10,8 @@ socket.on('write', function(data) {
 	// console.log(data);
 	data.sort(sortDate);	//Sort the array by date
 
-	setup(data);			//Initialize the program
+	app.init(data);			//Initialize the program
 });
-
-var canvas = document.getElementById('myCanvas');
-var ctx = canvas.getContext('2d');
 
 var allNews;		//2D array: each line is an array of events with the same date
 var maxEvents;		//Maximum number of events in the highest column
@@ -32,15 +29,20 @@ var nResults;
 var chartPos;
 var chartSize;
 
-function setup(data){
+var app = {};
+
+app.init = function (data){
+
 	/* -------------------- LAYOUT -------------------- */
 	chartPos = {x: 130,
-				y: $('#title').height() + 40 };
+				y: Math.round($('#title').height() + 40) };
 	positionDivs();	
 	var frameTop = $('#bottomFrame').css('top');
 	frameTop = frameTop.substr(0, frameTop.indexOf('p'));
-	chartSize = {x: window.innerWidth - (3 * chartPos.x),
-				 y: frameTop - chartPos.y - 40 };
+	chartSize = {x: Math.round(window.innerWidth - (3 * chartPos.x)),
+				 y: Math.round(frameTop - chartPos.y - 40) };
+	var cellSize = {x: 200,
+					y: 100 };
 	/* ------------------------------------------------ */
 
 	/* --------------------- DATA --------------------- */
@@ -58,24 +60,23 @@ function setup(data){
 					// categories, not numbers
 	var xScale =	d3.scale.ordinal()
 					// input domain is gonna be the length
+					// .domain(d3.range(allNews.length))
 					.domain(d3.range(allNews.length))
 					// start, end, % occupied by spacing
-					.rangeRoundBands([chartPos.x, chartPos.x + chartSize.x], 0.05);
+					.rangeRoundBands([0, innerWidth], 0, 0);
 
-	var yScale = d3.scale.linear()
-					.domain([0, maxEvents])
-					.range([chartPos.y, chartPos.y + chartSize.y]);	
-
-	var barHeight = chartSize.y / maxEvents;
-	console.log(barHeight);
+	var yScale = d3.scale.ordinal()
+					.domain(d3.range(maxEvents))
+					.rangeRoundBands([chartPos.y + chartSize.y, chartPos.y], 0, 0);
 
 	// Create SVG element
 	var svg = d3.select('body')
 				.append('svg')
-				.attr('width', chartSize.x)
-				.attr('height', chartSize.y)
-				.attr('left', chartPos.x)	
-				.attr('top', chartPos.y);
+				.attr('width', window.innerWidth)
+				.attr('height', window.innerHeight - 10)
+				.attr('left', 0)	
+				.attr('top', 0)
+				.attr('id', 'canvas');
 
 	//Create groups
 	var groups = svg.selectAll('g')
@@ -85,16 +86,52 @@ function setup(data){
 					.attr('transform', function(d, i){
 						return 'translate('+ xScale(i) + ', 0)';
 					})
-					.on('click', function(d) {
-       					// zoomIn(this);
+					.on('mouseenter', function(d, i) {
+
+						// Enlarge rects from this group
        					d3.select(this).selectAll('rect')
 							.transition()
 							.duration(500)
-							.attr('width', xScale.rangeBand() * 10)
-							.attr('height', barHeight * 10)
-							// .attr('x', 0)
-							.attr('y', function(d, i) {
-								return chartPos.y + chartSize.y - (barHeight * i * 10);
+							.attr('width', cellSize.x)
+							.attr('height', cellSize.y)
+							.attr('y', function(d, k) {
+								return chartSize.y - cellSize.y * k;
+							});
+
+						// Move columns
+						svg.selectAll('g')
+							.transition()
+							.duration(500)
+							.attr('transform', function(d, j){
+								var offset;
+								if(j < i){
+									offset = xScale(j) - (cellSize.x/2);	
+								}else if(j > i){
+									offset = xScale(j) + (cellSize.x/2);	
+								}else{
+									offset = xScale(j) - (cellSize.x - xScale.rangeBand())/2;
+								}
+								return 'translate('+ offset + ', 0)';
+							});
+					})
+					.on('mouseleave', function(d, i) {
+
+						// Return rects to original size
+       					d3.select(this).selectAll('rect')
+							.transition()
+							.duration(500)
+							.attr('y', function(d, k) {
+								return yScale(k);
+							})
+							.attr('width', xScale.rangeBand())
+							.attr('height', yScale.rangeBand());
+
+						// Move columns back to original position
+						svg.selectAll('g')
+							.transition()
+							.duration(500)
+							.attr('transform', function(d, j){
+								return 'translate('+ xScale(j) + ', 0)';
 							});
 					});
 
@@ -104,23 +141,103 @@ function setup(data){
 		.enter()
 		.append('rect')
 		.attr('x', 0)
-		.attr('y', function(d, i) {
-			return chartPos.y + chartSize.y - yScale(i);
+		.attr('y', function(d, i){
+			return yScale(i);
 		})
 		.attr('width', xScale.rangeBand())
-		.attr('height', barHeight)
+		.attr('height', yScale.rangeBand())
 		.attr('fill', function(d, i) {
-			if(d.company == 'O Globo'){
-				color = parseHslaColor(80, 100, 50, 1);
-			}else{
-				color = parseHslaColor(180, 100, 50, 1);
-			}			
+			var color = colorByCompany(d);		
 			return color;
-		});
+		});		
 
-		// function zoomIn(obj){
-		// 	var rects = obj.
-		// }		
+
+	/*---------- LISTENERS ----------*/
+	canvas.addEventListener('mousemove', function(evt){
+		getMousePos(evt);
+	}, false);
+
+	canvas.addEventListener('mousedown', function(evt){
+		isPressed = true;	// Set my 'isPressed' variable to true
+		getMousePos(evt);
+		if(url != null){
+			window.open(url,'_blank');	
+		}
+		
+	}, false);
+
+	/*------------ MENU ------------*/
+	$('.sections').on({
+	    'click': function(){
+	    	search($(this).html());
+	    },
+	    'mouseenter': function(){
+	    	$(this).animate({
+	    		// 'background-color': 'hsla(0, 0%, 100%, 0.5)',
+	    		'background-color': 'hsla(0, 0%, 90%, 0.5)',
+	    	}, 200);
+	    },
+	    'mouseleave': function(){
+	    	$(this).animate({
+	    		'background-color': 'transparent',
+	    	}, 200);
+	    }    
+	});
+
+	$('#ok').click(function(){
+		search($('#searchBox').val());	
+	});	
+
+	function search(word){
+		query = word;
+
+		if(word != ''){
+
+			query = query.toLowerCase();
+
+			if(query.search('black bloc') == -1){
+				query = ' ' + query;				//Only add space if it's not searching for black blocs,
+			}									//because all the news write it between quotes	
+			console.log(query);
+			countResults();
+			highlightResults();
+		}else{
+			$('#results').html('');
+		}
+	}	
+
+	function countResults(){
+
+		nResults = 0;
+
+		for(var i = 0; i < allNews.length; i++){
+			var line = allNews[i];
+			for(var j = 0; j < line.length; j++){
+				var obj = line[j];
+				var lowerCaseHeadline = obj.headline.toLowerCase();
+				if(	query != '' &&
+					lowerCaseHeadline.search(query) != -1){
+					nResults++
+				}
+			}	
+		}
+		$('#results').html(nResults + ' resultados encontrados.');
+	}	
+
+	function highlightResults(){
+		// Create bars
+		groups.selectAll('rect')
+			.attr('fill', function(d, i) {
+				var color;
+				var lowerCaseHeadline = d.headline.toLowerCase();
+				if(	query != '' && lowerCaseHeadline.search(query) == -1){
+					color = parseHslaColor(0, 0, 80, 1);
+				}else{
+					color = colorByCompany(d);
+				}
+				return color;
+		});
+	}	
 }
 
 
@@ -346,23 +463,7 @@ function drawScale(currentMonth, pos){
 		ctx.fillText(txt, pos.x - 1, chartSize.y + 20);
 }
 
-function countResults(){
 
-	nResults = 0;
-
-	for(var i = 0; i < allNews.length; i++){
-		var line = allNews[i];
-		for(var j = 0; j < line.length; j++){
-			var obj = line[j];
-			var lowerCaseHeadline = obj.headline.toLowerCase();
-			if(	query != '' &&
-				lowerCaseHeadline.search(query) != -1){
-				nResults++
-			}
-		}	
-	}
-	$('#results').html(nResults + ' results found.');
-}
 
 /*--------------- SETUP FUNCTIONS ---------------*/
 /* --- Called just once, at the program start ---*/
@@ -504,51 +605,23 @@ var parseHslaColor = function(h, s, l, a){
 	return myHslColor;
 }
 
+var colorByCompany = function(d){
+	var thisColor;
+	if(d.company == 'O Globo'){
+		thisColor = parseHslaColor(80, 100, 40, 1);
+	}else{
+		thisColor = parseHslaColor(220, 100, 50, 1);
+	}	
+	return thisColor;
+}
+
 function getMousePos(evt){
-	mouse.x = evt.clientX - canvasPosition.left;
-	mouse.y = evt.clientY - canvasPosition.top;
+	// mouse.x = evt.clientX - canvasPosition.left;
+	// mouse.y = evt.clientY - canvasPosition.top;
 	//You have to use evt.clientX! evt..x doesn't work with Firefox!
 
 	// console.log(mouse);
 }	
-
-/*------------ MENU ------------*/
-$('#ok').click(function(){
-	search($('#searchBox').val());	
-});
-
-function search(word){
-	query = word;
-
-	if(word != ''){
-
-		query = query.toLowerCase();
-
-		if(query.search('black bloc') == -1){
-			query = ' ' + query;				//Only add space if it's not searching for black blocs,
-		}									//because all the news write it between quotes	
-		console.log(query);
-		countResults();
-	}else{
-		$('#results').html('');
-	}
-}
-
-$('.sections').on({
-    'click': function(){
-    	search($(this).html());
-    },
-    'mouseenter': function(){
-    	$(this).animate({
-    		'background-color': 'hsla(0, 0%, 100%, 0.5)',
-    	}, 200);
-    },
-    'mouseleave': function(){
-    	$(this).animate({
-    		'background-color': 'transparent',
-    	}, 200);
-    }    
-});
 
 var positionDivs = function(){
 	screenHeight = window.innerHeight;
@@ -561,6 +634,7 @@ var positionDivs = function(){
 		'left': divPos.x,
 		'top': divPos.y,
 		'width': divSize,
+		'position': 'absolute'
 	});
 
 	divPos.y = screenHeight - $('#menu').height() - 20;
@@ -568,6 +642,7 @@ var positionDivs = function(){
 		'left': divPos.x,
 		'top': divPos.y,
 		'width': divSize,
+		'position': 'absolute'
 	});
 
 	divPos.x = chartPos.x;
@@ -580,9 +655,9 @@ var positionDivs = function(){
 	});
 
 	$('#menu').css({
-		'left': divPos.x,
+		// 'left': divPos.x,
 		'top': divPos.y,
-		'width': divSize,
+		// 'width': divSize,
 		// 'background-color': 'black'
 	});
 
@@ -609,22 +684,3 @@ var createMonths = function(){
 	month[11]='Dez';
 	return month;
 }	
-
-/*---------- LISTENERS ----------*/
-canvas.addEventListener('mousemove', function(evt){
-	getMousePos(evt);
-}, false);
-
-canvas.addEventListener('mousedown', function(evt){
-	isPressed = true;	// Set my 'isPressed' variable to true
-	getMousePos(evt);
-	if(url != null){
-		window.open(url,'_blank');	
-	}
-	
-}, false);
-
-// canvas.addEventListener('mouseup', function(evt){
-// 	isPressed = false;	// Set my 'isPressed' variable to false
-// 	getMousePos(evt);
-// }, false);		
